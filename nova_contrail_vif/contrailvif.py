@@ -146,10 +146,14 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
         # ip_address(string), vn_id(tuuid)
         import socket
         from gen_py.instance_service import ttypes
+        if len(vif['network']['subnets'][0]['ips']):
+            ipaddress = vif['network']['subnets'][0]['ips'][0]['address']
+        else:
+            ipaddress = "0.0.0.0"
         port = ttypes.Port(self._convert_to_bl(iface_id), 
                            self._convert_to_bl(instance['uuid']), 
                            dev, 
-                           vif['network']['subnets'][0]['ips'][0]['address'],
+                           ipaddress,
                            self._convert_to_bl(vif['network']['id']),
                            vif['address'],
 	                   instance['display_name'],
@@ -169,10 +173,14 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
 
         import socket
         from gen_py.instance_service import ttypes
+        if len(vif['network']['subnets'][0]['ips']):
+            ipaddress = vif['network']['subnets'][0]['ips'][0]['address']
+        else:
+            ipaddress = "0.0.0.0"
         port = ttypes.Port(self._convert_to_bl(iface_id), 
                            self._convert_to_bl(instance['uuid']), 
                            dev, 
-                           vif['network']['subnets'][0]['ips'][0]['address'],
+                           ipaddress,
                            self._convert_to_bl(vif['network']['id']),
                            vif['address'],
 	                   instance['display_name'],
