@@ -18,6 +18,16 @@ from gen_py.instance_service import InstanceService
 
 LOG = logging.getLogger(__name__)
 
+CONF = cfg.CONF
+contrail_vif_opts = {
+    cfg.BoolOpt('use_userspace_vhost',
+                default=False,
+                help='Use qemu userspace-vhost for backing guest interfaces')
+}
+CONF.register_opts(contrail_vif_opts, 'contrail')
+CONF.import_opt('number_of_virtio_queues', 'nova.virt.libvirt.vif',
+                group='libvirt')
+
 class VRouterVIFDriver(LibvirtBaseVIFDriver):
     """VIF driver for VRouter when running Quantum."""
     
@@ -133,9 +143,12 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
     def get_config(self, instance, vif, image_meta, inst_type):
         conf = super(VRouterVIFDriver, self).get_config(instance, vif, image_meta, inst_type)
         dev = self.get_vif_devname(vif)
-        #designer.set_vif_host_backend_ethernet_config(conf, dev)
-        designer.set_vif_host_backend_vhostuser_config(conf,
-            'server', None)
+
+        if CONF.contrail.use_userspace_vhost:
+            designer.set_vif_host_backend_vhostuser_config(conf,
+                    'server', None)
+        else:
+            designer.set_vif_host_backend_ethernet_config(conf, dev)
         designer.set_vif_bandwidth_config(conf, inst_type)
     
         return conf
@@ -143,7 +156,9 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
     def plug(self, instance, vif):
         iface_id = vif['id']
         dev = self.get_vif_devname(vif)
-        #linux_net.create_tap_dev(dev)
+
+        if not CONF.contrail.use_userspace_vhost:
+            linux_net.create_tap_dev(dev)
 
         # port_id(tuuid), instance_id(tuuid), tap_name(string), 
         # ip_address(string), vn_id(tuuid)
@@ -184,7 +199,9 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
 	                   self._convert_to_bl(instance['project_id']))
 
         self._agent_inform(port, iface_id, False)
-        #linux_net.delete_net_dev(dev)
+
+        if not CONF.contrail.use_userspace_vhost:
+            linux_net.delete_net_dev(dev)
 
     #end unplug
 #end class VRouterVIFDriver
