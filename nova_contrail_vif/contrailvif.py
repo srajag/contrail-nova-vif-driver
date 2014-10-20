@@ -1,5 +1,6 @@
 import copy
 import gettext
+import os.path as path
 
 gettext.install('contrail_vif')
 
@@ -22,7 +23,10 @@ CONF = cfg.CONF
 contrail_vif_opts = {
     cfg.BoolOpt('use_userspace_vhost',
                 default=False,
-                help='Use qemu userspace-vhost for backing guest interfaces')
+                help='Use qemu userspace-vhost for backing guest interfaces'),
+    cfg.StrOpt('userspace_vhost_socket_dir',
+               default='/var/tmp',
+               help='Directory for userspace vhost sockets'),
 }
 CONF.register_opts(contrail_vif_opts, 'contrail')
 CONF.import_opt('number_of_virtio_queues', 'nova.virt.libvirt.vif',
@@ -145,8 +149,10 @@ class VRouterVIFDriver(LibvirtBaseVIFDriver):
         dev = self.get_vif_devname(vif)
 
         if CONF.contrail.use_userspace_vhost:
+            dev = path.join(CONF.contrail.userspace_vhost_socket_dir,
+                            'uvh_vif_' + dev)
             designer.set_vif_host_backend_vhostuser_config(conf,
-                    'server', None)
+                    'client', dev)
         else:
             designer.set_vif_host_backend_ethernet_config(conf, dev)
         designer.set_vif_bandwidth_config(conf, inst_type)
