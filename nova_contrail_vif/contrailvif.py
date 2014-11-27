@@ -18,6 +18,7 @@
 import gettext
 import threading
 import time
+import os.path as path
 
 gettext.install('contrail_vif')
 
@@ -59,6 +60,20 @@ from nova.compute import utils as compute_utils
 
 orig_get_nw_info_for_instance = None
 compute_mgr = None
+
+CONF = cfg.CONF
+contrail_vif_opts = {
+    cfg.BoolOpt('use_userspace_vhost',
+                default=False,
+                help='Use qemu userspace-vhost for backing guest interfaces'),
+    cfg.StrOpt('userspace_vhost_socket_dir',
+               default='/var/tmp',
+               help='Directory for userspace vhost sockets'),
+}
+CONF.register_opts(contrail_vif_opts, 'contrail')
+CONF.import_opt('number_of_virtio_queues', 'nova.virt.libvirt.vif',
+                group='libvirt')
+
 
 # MonkeyPatch the vif_driver with VRouterVIFDriver during restart of nova-compute
 def patched_get_nw_info_for_instance(instance):
@@ -139,10 +154,10 @@ class VRouterVIFDriver(LibVirtVIFDriver):
 
     def get_config(self, instance, vif, image_meta, inst_type, virt_type=None):
         try:
-            conf = super(VRouterVIFDriver, self).get_config(instance, vif, 
+            conf = super(VRouterVIFDriver, self).get_config(instance, vif,
                                                         image_meta, inst_type)
         except TypeError:
-            conf = super(VRouterVIFDriver, self).get_base_config(instance, vif, 
+            conf = super(VRouterVIFDriver, self).get_base_config(instance, vif,
                                              image_meta, inst_type, virt_type)
         dev = self.get_vif_devname(vif)
         if not virt_type:
@@ -156,7 +171,11 @@ class VRouterVIFDriver(LibVirtVIFDriver):
             br_name = self._get_br_name(dev)
             designer.set_vif_host_backend_bridge_config(conf, br_name)
         else:
-            designer.set_vif_host_backend_ethernet_config(conf, dev)
+            if CONF.contrail.use_userspace_vhost:
+                designer.set_vif_host_backend_vhostuser_config(conf, 'server',
+                        None)
+            else:
+                designer.set_vif_host_backend_ethernet_config(conf, dev)
         designer.set_vif_bandwidth_config(conf, inst_type)
 
         return conf
@@ -165,7 +184,8 @@ class VRouterVIFDriver(LibVirtVIFDriver):
         dev = self.get_vif_devname(vif)
 
         try:
-            linux_net.create_tap_dev(dev)
+            if not CONF.contrail.use_userspace_vhost:
+                linux_net.create_tap_dev(dev)
         except processutils.ProcessExecutionError:
             LOG.exception(_LE("Failed while plugging vif"), instance=instance)
 
@@ -237,5 +257,6 @@ class VRouterVIFDriver(LibVirtVIFDriver):
         if virt_type == 'lxc':
             linux_net.LinuxBridgeInterfaceDriver.remove_bridge(
                     self._get_br_name(dev))
-        linux_net.delete_net_dev(dev)
+        if not CONF.contrail.use_userspace_vhost:
+            linux_net.delete_net_dev(dev)
 
