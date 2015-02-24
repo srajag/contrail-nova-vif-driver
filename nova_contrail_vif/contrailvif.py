@@ -68,7 +68,7 @@ contrail_vif_opts = {
                 default=False,
                 help='Use qemu userspace-vhost for backing guest interfaces'),
     cfg.StrOpt('userspace_vhost_socket_dir',
-               default='/var/tmp',
+               default='/var/run/vrouter',
                help='Directory for userspace vhost sockets'),
 }
 CONF.register_opts(contrail_vif_opts, 'contrail')
